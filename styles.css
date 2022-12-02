@@ -78,3 +78,9 @@
 .moodle-dialogue #editelementform fieldset.hidden {
     display: block;
 }
+
+.activityiconcontainer.other {
+  background-color: #ffd700; }
+  .activityiconcontainer.other .activityicon,
+  .activityiconcontainer.other .icon {
+    filter: brightness(0) invert(1); }
