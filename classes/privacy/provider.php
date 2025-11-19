@@ -32,8 +32,6 @@ use core_privacy\local\request\transform;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Privacy Subsystem implementation for mod_customcert.
  *
@@ -163,7 +161,7 @@ class provider implements
             $carry[] = [
                 'code' => $record->code,
                 'emailed' => transform::yesno($record->emailed),
-                'timecreated' => transform::datetime($record->timecreated)
+                'timecreated' => transform::datetime($record->timecreated),
             ];
             return $carry;
         }, function($customcertid, $data) use ($user, $customcertidstocmids) {

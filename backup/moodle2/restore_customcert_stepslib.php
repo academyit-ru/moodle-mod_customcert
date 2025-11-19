@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die('Direct access to this script is forbidden.');
-
 /**
  * Define the complete customcert structure for restore, with file and id annotations.
  *
@@ -40,7 +38,7 @@ class restore_customcert_activity_structure_step extends restore_activity_struct
      */
     protected function define_structure() {
         // The array used to store the path to the items we want to restore.
-        $paths = array();
+        $paths = [];
 
         // The customcert instance.
         $paths[] = new restore_path_element('customcert', '/activity/customcert');
@@ -159,6 +157,7 @@ class restore_customcert_activity_structure_step extends restore_activity_struct
 
         $data->customcertid = $this->get_new_parentid('customcert');
         $data->timecreated = $this->apply_date_offset($data->timecreated);
+        $data->userid = $this->get_mappingid('user', $data->userid);
 
         $newitemid = $DB->insert_record('customcert_issues', $data);
         $this->set_mapping('customcert_issue', $oldid, $newitemid);

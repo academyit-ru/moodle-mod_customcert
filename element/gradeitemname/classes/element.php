@@ -24,8 +24,6 @@
 
 namespace customcertelement_gradeitemname;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The customcert element gradeitemname's core interaction API.
  *
@@ -123,13 +121,15 @@ class element extends \mod_customcert\element {
             $gradeitemid = substr($gradeitem, 10);
             $gradeitem = \grade_item::fetch(['id' => $gradeitemid]);
 
-            return $gradeitem->get_name();
+            // If the gradeitem was not found, return an empty string.
+            // This will effectively prevent the element from rendering.
+            return $gradeitem ? $gradeitem->get_name() : '';
         } else {
-            if (!$cm = $DB->get_record('course_modules', array('id' => $gradeitem))) {
+            if (!$cm = $DB->get_record('course_modules', ['id' => $gradeitem])) {
                 return '';
             }
 
-            if (!$module = $DB->get_record('modules', array('id' => $cm->module))) {
+            if (!$module = $DB->get_record('modules', ['id' => $cm->module])) {
                 return '';
             }
 
@@ -138,12 +138,14 @@ class element extends \mod_customcert\element {
                 'itemmodule' => $module->name,
                 'iteminstance' => $cm->instance,
                 'courseid' => $cm->course,
-                'itemnumber' => 0
+                'itemnumber' => 0,
             ];
 
             $gradeitem = \grade_item::fetch($params);
 
-            return $gradeitem->get_name();
+            // If the gradeitem was not found, return an empty string.
+            // This will effectively prevent the element from rendering.
+            return $gradeitem ? $gradeitem->get_name() : '';
         }
     }
 }

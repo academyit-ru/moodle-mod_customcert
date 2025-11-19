@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die;
-
 /**
  * Customcert module upgrade code.
  *
@@ -176,6 +174,65 @@ function xmldb_customcert_upgrade($oldversion) {
         }
 
         upgrade_mod_savepoint(true, 2020110901, 'customcert');
+    }
+
+    if ($oldversion < 2021051702) {
+        $table = new xmldb_table('customcert_elements');
+        $field = new xmldb_field('alignment', XMLDB_TYPE_CHAR, '1', null, XMLDB_NOTNULL, null, 'L', 'refpoint');
+
+        // Conditionally launch add field.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2021051702, 'customcert'); // Replace with the actual version number.
+    }
+
+    if ($oldversion < 2022041903) {
+        $table = new xmldb_table('customcert');
+        $field = new xmldb_field('language', XMLDB_TYPE_CHAR, '20', null, null, null, null, 'protection');
+
+        // Conditionally launch add field.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2022041903, 'customcert'); // Replace with the actual version number.
+    }
+
+    if ($oldversion < 2022041906) {
+        // Define index to be added to customcert_issues.
+        $table = new xmldb_table('customcert_issues');
+        $index = new xmldb_index('userid-customcertid', XMLDB_INDEX_NOTUNIQUE, ['userid', 'customcertid']);
+
+        // Conditionally launch add index.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_mod_savepoint(true, 2022041906, 'customcert'); // Replace with the actual version number.
+    }
+
+    if ($oldversion < 2022041907) {
+        $table = new xmldb_table('customcert_issues');
+        $key = new xmldb_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+
+        $dbman->add_key($table, $key);
+
+        upgrade_mod_savepoint(true, 2022041907, 'customcert');
+    }
+
+    if ($oldversion < 2022041908) {
+        // Changing precision of field verifyany on table customcert to (1).
+        $table = new xmldb_table('customcert');
+        $field = new xmldb_field('verifyany', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
+            'requiredtime');
+
+        // Launch change of precision for field verifyany.
+        $dbman->change_field_precision($table, $field);
+
+        // Customcert savepoint reached.
+        upgrade_mod_savepoint(true, 2022041908, 'customcert');
     }
 
     return true;

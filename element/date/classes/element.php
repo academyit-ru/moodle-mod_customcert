@@ -66,6 +66,31 @@ define('CUSTOMCERT_DATE_ENROLMENT_START', '-6');
  */
 define('CUSTOMCERT_DATE_ENROLMENT_END', '-7');
 
+/**
+ * Date - Relative expiry date of 1 year
+ */
+define('CUSTOMCERT_DATE_EXPIRY_ONE', '-8');
+
+/**
+ * Date - Relative expiry date of 2 year
+ */
+define('CUSTOMCERT_DATE_EXPIRY_TWO', '-9');
+
+/**
+ * Date - Relative expiry date of 3 year
+ */
+define('CUSTOMCERT_DATE_EXPIRY_THREE', '-10');
+
+/**
+ * Date - Relative expiry date of 4 year
+ */
+define('CUSTOMCERT_DATE_EXPIRY_FOUR', '-11');
+
+/**
+ * Date - Relative expiry date of 5 year
+ */
+define('CUSTOMCERT_DATE_EXPIRY_FIVE', '-12');
+
 require_once($CFG->dirroot . '/lib/grade/constants.php');
 
 /**
@@ -86,7 +111,7 @@ class element extends \mod_customcert\element {
         global $CFG, $COURSE;
 
         // Get the possible date options.
-        $dateoptions = array();
+        $dateoptions = [];
         $dateoptions[CUSTOMCERT_DATE_ISSUE] = get_string('issueddate', 'customcertelement_date');
         $dateoptions[CUSTOMCERT_DATE_CURRENT_DATE] = get_string('currentdate', 'customcertelement_date');
         $completionenabled = $CFG->enablecompletion && ($COURSE->id == SITEID || $COURSE->enablecompletion);
@@ -95,7 +120,11 @@ class element extends \mod_customcert\element {
         }
         $dateoptions[CUSTOMCERT_DATE_ENROLMENT_START] = get_string('enrolmentstartdate', 'customcertelement_date');
         $dateoptions[CUSTOMCERT_DATE_ENROLMENT_END] = get_string('enrolmentenddate', 'customcertelement_date');
-
+        $dateoptions[CUSTOMCERT_DATE_EXPIRY_ONE] = get_string('expirydateone', 'customcertelement_date');
+        $dateoptions[CUSTOMCERT_DATE_EXPIRY_TWO] = get_string('expirydatetwo', 'customcertelement_date');
+        $dateoptions[CUSTOMCERT_DATE_EXPIRY_THREE] = get_string('expirydatethree', 'customcertelement_date');
+        $dateoptions[CUSTOMCERT_DATE_EXPIRY_FOUR] = get_string('expirydatefour', 'customcertelement_date');
+        $dateoptions[CUSTOMCERT_DATE_EXPIRY_FIVE] = get_string('expirydatefive', 'customcertelement_date');
         $dateoptions[CUSTOMCERT_DATE_COURSE_START] = get_string('coursestartdate', 'customcertelement_date');
         $dateoptions[CUSTOMCERT_DATE_COURSE_END] = get_string('courseenddate', 'customcertelement_date');
         $dateoptions[CUSTOMCERT_DATE_COURSE_GRADE] = get_string('coursegradedate', 'customcertelement_date');
@@ -119,10 +148,10 @@ class element extends \mod_customcert\element {
      */
     public function save_unique_data($data) {
         // Array of data we will be storing in the database.
-        $arrtostore = array(
+        $arrtostore = [
             'dateitem' => $data->dateitem,
-            'dateformat' => $data->dateformat
-        );
+            'dateformat' => $data->dateformat,
+        ];
 
         // Encode these variables before saving into the DB.
         return json_encode($arrtostore);
@@ -155,15 +184,25 @@ class element extends \mod_customcert\element {
             $date = time();
         } else {
             // Get the page.
-            $page = $DB->get_record('customcert_pages', array('id' => $this->get_pageid()), '*', MUST_EXIST);
+            $page = $DB->get_record('customcert_pages', ['id' => $this->get_pageid()], '*', MUST_EXIST);
             // Get the customcert this page belongs to.
-            $customcert = $DB->get_record('customcert', array('templateid' => $page->templateid), '*', MUST_EXIST);
+            $customcert = $DB->get_record('customcert', ['templateid' => $page->templateid], '*', MUST_EXIST);
             // Now we can get the issue for this user.
-            $issue = $DB->get_record('customcert_issues', array('userid' => $user->id, 'customcertid' => $customcert->id),
+            $issue = $DB->get_record('customcert_issues', ['userid' => $user->id, 'customcertid' => $customcert->id],
                 '*', IGNORE_MULTIPLE);
 
             if ($dateitem == CUSTOMCERT_DATE_ISSUE) {
                 $date = $issue->timecreated;
+            } else if ($dateitem == CUSTOMCERT_DATE_EXPIRY_ONE) {
+                $date = strtotime('+1 years', $issue->timecreated);
+            } else if ($dateitem == CUSTOMCERT_DATE_EXPIRY_TWO) {
+                $date = strtotime('+2 years', $issue->timecreated);
+            } else if ($dateitem == CUSTOMCERT_DATE_EXPIRY_THREE) {
+                $date = strtotime('+3 years', $issue->timecreated);
+            } else if ($dateitem == CUSTOMCERT_DATE_EXPIRY_FOUR) {
+                $date = strtotime('+4 years', $issue->timecreated);
+            } else if ($dateitem == CUSTOMCERT_DATE_EXPIRY_FIVE) {
+                $date = strtotime('+5 years', $issue->timecreated);
             } else if ($dateitem == CUSTOMCERT_DATE_CURRENT_DATE) {
                 $date = time();
             } else if ($dateitem == CUSTOMCERT_DATE_COMPLETION) {
@@ -172,7 +211,7 @@ class element extends \mod_customcert\element {
                           FROM {course_completions} c
                          WHERE c.userid = :userid
                            AND c.course = :courseid";
-                if ($timecompleted = $DB->get_record_sql($sql, array('userid' => $issue->userid, 'courseid' => $courseid))) {
+                if ($timecompleted = $DB->get_record_sql($sql, ['userid' => $issue->userid, 'courseid' => $courseid])) {
                     if (!empty($timecompleted->timecompleted)) {
                         $date = $timecompleted->timecompleted;
                     }
@@ -182,7 +221,7 @@ class element extends \mod_customcert\element {
                 $sql = "SELECT ue.timestart FROM {enrol} e JOIN {user_enrolments} ue ON ue.enrolid = e.id
                          WHERE e.courseid = :courseid
                            AND ue.userid = :userid";
-                if ($timestart = $DB->get_record_sql($sql, array('userid' => $issue->userid, 'courseid' => $courseid))) {
+                if ($timestart = $DB->get_record_sql($sql, ['userid' => $issue->userid, 'courseid' => $courseid])) {
                     if (!empty($timestart->timestart)) {
                         $date = $timestart->timestart;
                     }
@@ -192,15 +231,15 @@ class element extends \mod_customcert\element {
                 $sql = "SELECT ue.timeend FROM {enrol} e JOIN {user_enrolments} ue ON ue.enrolid = e.id
                          WHERE e.courseid = :courseid
                            AND ue.userid = :userid";
-                if ($timeend = $DB->get_record_sql($sql, array('userid' => $issue->userid, 'courseid' => $courseid))) {
+                if ($timeend = $DB->get_record_sql($sql, ['userid' => $issue->userid, 'courseid' => $courseid])) {
                     if (!empty($timeend->timeend)) {
                         $date = $timeend->timeend;
                     }
                 }
             } else if ($dateitem == CUSTOMCERT_DATE_COURSE_START) {
-                $date = $DB->get_field('course', 'startdate', array('id' => $courseid));
+                $date = $DB->get_field('course', 'startdate', ['id' => $courseid]);
             } else if ($dateitem == CUSTOMCERT_DATE_COURSE_END) {
-                $date = $DB->get_field('course', 'enddate', array('id' => $courseid));
+                $date = $DB->get_field('course', 'enddate', ['id' => $courseid]);
             } else {
                 if ($dateitem == CUSTOMCERT_DATE_COURSE_GRADE) {
                     $grade = \mod_customcert\element_helper::get_course_grade_info(
@@ -290,7 +329,7 @@ class element extends \mod_customcert\element {
         $dateinfo = json_decode($this->get_data());
         if ($newitem = \restore_dbops::get_backup_ids_record($restore->get_restoreid(), 'course_module', $dateinfo->dateitem)) {
             $dateinfo->dateitem = $newitem->newitemid;
-            $DB->set_field('customcert_elements', 'data', $this->save_unique_data($dateinfo), array('id' => $this->get_id()));
+            $DB->set_field('customcert_elements', 'data', $this->save_unique_data($dateinfo), ['id' => $this->get_id()]);
         }
     }
 
@@ -308,7 +347,7 @@ class element extends \mod_customcert\element {
 
         $dateformats = [
             1 => userdate($date, '%B %d, %Y'),
-            2 => userdate($date, '%B %d' . $suffix . ', %Y')
+            2 => userdate($date, '%B %d' . $suffix . ', %Y'),
         ];
 
         $strdateformats = [
@@ -326,7 +365,7 @@ class element extends \mod_customcert\element {
             'strftimemonthyear',
             'strftimerecent',
             'strftimerecentfull',
-            'strftimetime'
+            'strftimetime',
         ];
 
         foreach ($strdateformats as $strdateformat) {
@@ -393,7 +432,7 @@ class element extends \mod_customcert\element {
      * @return string the suffix.
      */
     protected static function get_ordinal_number_suffix($day) {
-        if (!in_array(($day % 100), array(11, 12, 13))) {
+        if (!in_array(($day % 100), [11, 12, 13])) {
             switch ($day % 10) {
                 // Handle 1st, 2nd, 3rd.
                 case 1:
