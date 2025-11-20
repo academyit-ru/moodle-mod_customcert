@@ -224,3 +224,5 @@ $string['userlanguage_help'] = 'You can force the language of the certificate to
 
 // Acess API.
 $string['customcert:managelanguages'] = 'Manage language on edit form';
+$string['code_symbol_default'] = 'Буквы и цифры';
+$string['code_symbol_tolko_cifri'] = 'Только цифры';

@@ -24,6 +24,8 @@
 
 namespace customcertelement_code;
 
+use mod_customcert\code_symbol_type;
+
 /**
  * The customcert element code's core interaction API.
  *
@@ -32,6 +34,18 @@ namespace customcertelement_code;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class element extends \mod_customcert\element {
+    /**
+     * This will handle how form data will be saved into the data column in the
+     * customcert_elements table.
+     *
+     * @param \stdClass $data the form data.
+     * @return string the json encoded array
+     */
+    public function save_unique_data($data) {
+        return json_encode([
+            'code_symbols_type' => $data->code_symbols_type,
+        ]);
+    }
 
     /**
      * Handles rendering the element on the pdf.
@@ -44,7 +58,12 @@ class element extends \mod_customcert\element {
         global $DB;
 
         if ($preview) {
-            $code = \mod_customcert\certificate::generate_code();
+
+            $courseid = \mod_customcert\element_helper::get_courseid($this->id);
+            $course = get_course($courseid);
+            $code = \mod_customcert\certificate::generate_code(
+                $this->code_symbol_type_from_coursefield($course)
+            );
         } else {
             // Get the page.
             $page = $DB->get_record('customcert_pages', ['id' => $this->get_pageid()], '*', MUST_EXIST);
@@ -68,8 +87,37 @@ class element extends \mod_customcert\element {
      * @return string the html
      */
     public function render_html() {
-        $code = \mod_customcert\certificate::generate_code();
+        $courseid = \mod_customcert\element_helper::get_courseid($this->id);
+        $course = get_course($courseid);
+        $code = \mod_customcert\certificate::generate_code(
+            $this->code_symbol_type_from_coursefield($course)
+        );
 
         return \mod_customcert\element_helper::render_html_content($this, $code);
+    }
+
+    /**
+     * Helper function that returns the field value in a human-readable format.
+     *
+     * @param \stdClass $course the course we are rendering this for
+     */
+    protected function code_symbol_type_from_coursefield(\stdClass $course) : code_symbol_type {
+        $handler = \core_course\customfield\course_handler::create();
+        $datafieldarr = $handler->get_instance_data($course->id, true);
+        $codetype = code_symbol_type::CIFRI_BUKVI;
+        foreach($datafieldarr as $datacontroller) {
+            if ('customcert_code_symbol_type' === $datacontroller->get_field()->get('shortname')) {
+                $fromcourse = match(mb_strtoupper($datacontroller->export_value())) {
+                    'ЦИФРЫ' => code_symbol_type::CIFRI,
+                    default => code_symbol_type::CIFRI_BUKVI,
+                };
+                if ($fromcourse) {
+                    $codetype = $fromcourse;
+                }
+                break;
+            }
+        }
+
+        return $codetype;
     }
 }
