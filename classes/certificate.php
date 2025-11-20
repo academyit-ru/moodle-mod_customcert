@@ -529,7 +529,8 @@ class certificate {
         $issue = new \stdClass();
         $issue->userid = $userid;
         $issue->customcertid = $certificateid;
-        $issue->code = self::generate_code();
+        $codetype = static::get_code_symbols_type((int) $certificateid);
+        $issue->code = self::generate_code($codetype);
         $issue->emailed = 0;
         $issue->timecreated = time();
 
@@ -556,20 +557,54 @@ class certificate {
      *
      * @return string
      */
-    public static function generate_code(): string {
+    public static function generate_code(code_symbol_type $type = code_symbol_type::CIFRI_BUKVI): string {
         global $DB;
 
-        // Get the user's selected method from settings.
-        $method = get_config('customcert', 'codegenerationmethod');
+        $uniquecodefound = false;
+        $generator = match($type) {
+            code_symbol_type::CIFRI => function() {
+                $code = random_int(1, 9999999999);
+                $code = str_pad($code, 10, '0');
+                return $code;
+            },
+            default => fn() => random_string(10) // cifri_bukvi
+        };
+        $code = $generator();
+        while (!$uniquecodefound) {
+            if (!$DB->record_exists('customcert_issues', ['code' => $code])) {
+                $uniquecodefound = true;
+            } else {
+                $code = $generator();
+            }
+        }
 
-        do {
-            $code = match ($method) {
-                '0' => self::generate_code_upper_lower_digits(),
-                '1' => self::generate_code_digits_with_hyphens(),
-                default => self::generate_code_upper_lower_digits(),
-            };
-        } while ($DB->record_exists('customcert_issues', ['code' => $code]));
         return $code;
+    }
+
+    public static function get_code_symbols_type(int $certificateid): code_symbol_type {
+        /** @var \moodle_database $DB */
+        global $DB;
+
+        $courseid = $DB->get_field('customcert', 'course', ['id' => $certificateid], MUST_EXIST);
+
+        $handler = \core_course\customfield\course_handler::create();
+        $datafieldarr = $handler->get_instance_data($courseid, true);
+        $codetype = code_symbol_type::CIFRI_BUKVI;
+        foreach($datafieldarr as $datacontroller) {
+            if ('customcert_code_symbol_type' === $datacontroller->get_field()->get('shortname')) {
+                $coursefieldval = mb_strtoupper($datacontroller->export_value());
+                $fromcourse = match($coursefieldval) {
+                    'ЦИФРЫ' => code_symbol_type::CIFRI,
+                    default => code_symbol_type::CIFRI_BUKVI,
+                };
+                if ($fromcourse) {
+                    $codetype = $fromcourse;
+                }
+                break;
+            }
+        }
+
+        return $codetype;
     }
 
     /**
