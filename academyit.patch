@@ -1,0 +1,186 @@
+commit 1192de0557ce59d95c354bc32231638ad47cc3db
+Author: Kilikaev Victor <kv2013@gmail.com>
+Date:   Thu Nov 20 21:00:08 2025 +0500
+
+    улутшение: добавляет возможность изменить набор симоволов для генерации кода
+
+diff --git a/classes/certificate.php b/classes/certificate.php
+index 8e7747d6..5692b38b 100644
+--- a/classes/certificate.php
++++ b/classes/certificate.php
+@@ -437,7 +437,8 @@ class certificate {
+         $issue = new \stdClass();
+         $issue->userid = $userid;
+         $issue->customcertid = $certificateid;
+-        $issue->code = self::generate_code();
++        $codetype = static::get_code_symbols_type((int) $certificateid);
++        $issue->code = self::generate_code($codetype);
+         $issue->emailed = 0;
+         $issue->timecreated = time();
+ 
+@@ -450,19 +451,53 @@ class certificate {
+      *
+      * @return string
+      */
+-    public static function generate_code() {
++    public static function generate_code(code_symbol_type $type = code_symbol_type::CIFRI_BUKVI): string {
+         global $DB;
+ 
+         $uniquecodefound = false;
+-        $code = random_string(10);
++        $generator = match($type) {
++            code_symbol_type::CIFRI => function() {
++                $code = random_int(1, 9999999999);
++                $code = str_pad($code, 10, '0');
++                return $code;
++            },
++            default => fn() => random_string(10) // cifri_bukvi
++        };
++        $code = $generator();
+         while (!$uniquecodefound) {
+             if (!$DB->record_exists('customcert_issues', ['code' => $code])) {
+                 $uniquecodefound = true;
+             } else {
+-                $code = random_string(10);
++                $code = $generator();
+             }
+         }
+ 
+         return $code;
+     }
++
++    public static function get_code_symbols_type(int $certificateid): code_symbol_type {
++        /** @var \moodle_database $DB */
++        global $DB;
++
++        $courseid = $DB->get_field('customcert', 'course', ['id' => $certificateid], MUST_EXIST);
++
++        $handler = \core_course\customfield\course_handler::create();
++        $datafieldarr = $handler->get_instance_data($courseid, true);
++        $codetype = code_symbol_type::CIFRI_BUKVI;
++        foreach($datafieldarr as $datacontroller) {
++            if ('customcert_code_symbol_type' === $datacontroller->get_field()->get('shortname')) {
++                $coursefieldval = mb_strtoupper($datacontroller->export_value());
++                $fromcourse = match($coursefieldval) {
++                    'ЦИФРЫ' => code_symbol_type::CIFRI,
++                    default => code_symbol_type::CIFRI_BUKVI,
++                };
++                if ($fromcourse) {
++                    $codetype = $fromcourse;
++                }
++                break;
++            }
++        }
++
++        return $codetype;
++    }
+ }
+diff --git a/classes/code_symbol_type.php b/classes/code_symbol_type.php
+new file mode 100644
+index 00000000..2b271991
+--- /dev/null
++++ b/classes/code_symbol_type.php
+@@ -0,0 +1,8 @@
++<?php declare(strict_types=1);
++
++namespace mod_customcert;
++
++enum code_symbol_type: string {
++    case CIFRI = 'cifri';
++    case CIFRI_BUKVI = 'cifri_bukvi';
++}
+diff --git a/element/code/classes/element.php b/element/code/classes/element.php
+index 545362b7..c8f07958 100644
+--- a/element/code/classes/element.php
++++ b/element/code/classes/element.php
+@@ -24,6 +24,8 @@
+ 
+ namespace customcertelement_code;
+ 
++use mod_customcert\code_symbol_type;
++
+ /**
+  * The customcert element code's core interaction API.
+  *
+@@ -32,6 +34,18 @@ namespace customcertelement_code;
+  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+  */
+ class element extends \mod_customcert\element {
++    /**
++     * This will handle how form data will be saved into the data column in the
++     * customcert_elements table.
++     *
++     * @param \stdClass $data the form data.
++     * @return string the json encoded array
++     */
++    public function save_unique_data($data) {
++        return json_encode([
++            'code_symbols_type' => $data->code_symbols_type,
++        ]);
++    }
+ 
+     /**
+      * Handles rendering the element on the pdf.
+@@ -44,7 +58,12 @@ class element extends \mod_customcert\element {
+         global $DB;
+ 
+         if ($preview) {
+-            $code = \mod_customcert\certificate::generate_code();
++
++            $courseid = \mod_customcert\element_helper::get_courseid($this->id);
++            $course = get_course($courseid);
++            $code = \mod_customcert\certificate::generate_code(
++                $this->code_symbol_type_from_coursefield($course)
++            );
+         } else {
+             // Get the page.
+             $page = $DB->get_record('customcert_pages', ['id' => $this->get_pageid()], '*', MUST_EXIST);
+@@ -68,8 +87,37 @@ class element extends \mod_customcert\element {
+      * @return string the html
+      */
+     public function render_html() {
+-        $code = \mod_customcert\certificate::generate_code();
++        $courseid = \mod_customcert\element_helper::get_courseid($this->id);
++        $course = get_course($courseid);
++        $code = \mod_customcert\certificate::generate_code(
++            $this->code_symbol_type_from_coursefield($course)
++        );
+ 
+         return \mod_customcert\element_helper::render_html_content($this, $code);
+     }
++
++    /**
++     * Helper function that returns the field value in a human-readable format.
++     *
++     * @param \stdClass $course the course we are rendering this for
++     */
++    protected function code_symbol_type_from_coursefield(\stdClass $course) : code_symbol_type {
++        $handler = \core_course\customfield\course_handler::create();
++        $datafieldarr = $handler->get_instance_data($course->id, true);
++        $codetype = code_symbol_type::CIFRI_BUKVI;
++        foreach($datafieldarr as $datacontroller) {
++            if ('customcert_code_symbol_type' === $datacontroller->get_field()->get('shortname')) {
++                $fromcourse = match(mb_strtoupper($datacontroller->export_value())) {
++                    'ЦИФРЫ' => code_symbol_type::CIFRI,
++                    default => code_symbol_type::CIFRI_BUKVI,
++                };
++                if ($fromcourse) {
++                    $codetype = $fromcourse;
++                }
++                break;
++            }
++        }
++
++        return $codetype;
++    }
+ }
+diff --git a/lang/en/customcert.php b/lang/en/customcert.php
+index 28910b8f..1c2cb498 100644
+--- a/lang/en/customcert.php
++++ b/lang/en/customcert.php
+@@ -224,3 +224,5 @@ $string['userlanguage_help'] = 'You can force the language of the certificate to
+ 
+ // Acess API.
+ $string['customcert:managelanguages'] = 'Manage language on edit form';
++$string['code_symbol_default'] = 'Буквы и цифры';
++$string['code_symbol_tolko_cifri'] = 'Только цифры';
